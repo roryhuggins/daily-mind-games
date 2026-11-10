@@ -12,7 +12,10 @@ let runner: Promise<Query> | null = null;
 async function makeRunner(): Promise<Query> {
   if (url) {
     const sql = neon(url);
-    return (text, params = []) => sql.query(text, params as any[]) as Promise<Row[]>;
+    const run: Query = (text, params = []) => sql.query(text, params as any[]) as Promise<Row[]>;
+    // Create any missing tables on first use (every statement is IF NOT EXISTS).
+    for (const stmt of schemaStatements()) await run(stmt);
+    return run;
   }
   // Local development without a database: an in-process Postgres (PGlite),
   // stored in .pglite/ so data survives restarts.
@@ -22,14 +25,19 @@ async function makeRunner(): Promise<Query> {
   return async (text, params = []) => (await db.query<Row>(text, params as any[])).rows;
 }
 
+function schemaStatements(): string[] {
+  const schema = readFileSync(path.join(process.cwd(), "db/schema.sql"), "utf8");
+  return schema.split(/;\s*\n/).map((s) => s.replace(/^--.*$/gm, "").trim()).filter(Boolean);
+}
+
 export async function q<T extends Row = Row>(text: string, params: unknown[] = []): Promise<T[]> {
-  runner ??= makeRunner();
+  runner ??= makeRunner().catch((e) => {
+    runner = null; // retry setup on the next request
+    throw e;
+  });
   return (await runner)(text, params) as Promise<T[]>;
 }
 
 export async function migrate() {
-  const schema = readFileSync(path.join(process.cwd(), "db/schema.sql"), "utf8");
-  for (const stmt of schema.split(/;\s*\n/).map((s) => s.trim()).filter(Boolean)) {
-    await q(stmt);
-  }
+  for (const stmt of schemaStatements()) await q(stmt);
 }

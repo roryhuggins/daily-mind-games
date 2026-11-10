@@ -28,7 +28,7 @@ Also parsed: Wordle (`Wordle 1,605 4/6`) and Connections (`Connections Puzzle #8
 3. Settings → Environment Variables:
    - `INGEST_SECRET`: a long random string (`openssl rand -hex 24`)
    - `SITE_PASSWORD` (optional): asks visitors for a password (any username)
-4. Create the tables: `DATABASE_URL=... npm run db:migrate` (or paste `db/schema.sql` into the Neon SQL editor).
+4. Nothing to do for tables: the app creates them on first request (`npm run db:migrate` also works).
 5. Redeploy.
 
 ## API
